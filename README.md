@@ -18,16 +18,31 @@ the test-suite integration are not written yet.
   for a chain.
 - `ProblemDetailsError` and the error type URLs (Section 4.4).
 
-The functions are pure. The caller supplies the network and identity steps:
+Discovery verifies the proof on every credential it adds to a chain, including
+credentials the holder provided. It uses the caller's signature suites and
+document loader, as the bitstring status list library does:
 
-- `fetchCredential(url)`: applies the retrieval policy. Throw to signal failure.
+- `suite`: an array of Data Integrity suites for verification, such as
+  eddsa-jcs-2022. Required when `verifyProofs` is true (the default).
+- `documentLoader(url)`: loads contexts, DID documents, and verification
+  methods. Required when `verifyProofs` is true.
+- `verifyProofs`: set to `false` only for credentials that were verified
+  elsewhere. A failed proof raises `CRYPTOGRAPHIC_SECURITY_ERROR`.
+
+The functions do no network or I/O of their own. The caller also supplies:
+
+- `fetchCredential(url)`: fetches a credential, and applies the retrieval
+  policy. Throw to signal failure.
 - `resolveIdentifier(did)`: returns the controlled identifier document.
-- `verifyPresentation(presentation, issuerId)`: verifies the proof and that it is
-  bound to `issuerId`.
-- `validateOutputValidation(credential, schema)`: checks a credential against one
-  data schema. Required when a recognized action declares `outputValidation`.
+- `verifyPresentation(presentation, issuerId)`: returns true when the
+  presentation's proof verifies and is bound to `issuerId`. Discovery verifies
+  the credentials inside the presentation separately.
+- `validateOutputValidation(credential, schema)`: returns true when the
+  credential conforms to one data schema. Required when a recognized action
+  declares `outputValidation`.
 
-Credentials are assumed to have been verified individually (Section 4).
+The target credential is the caller's input. Verify its proof before calling
+discovery.
 
 ## Open questions
 
