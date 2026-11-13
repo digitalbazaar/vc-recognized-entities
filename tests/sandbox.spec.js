@@ -84,6 +84,27 @@ describe('validator sandbox', () => {
       memoryBytes: 32 * 1024 * 1024
     });
     expect(reply.ok).to.be.false;
+    expect(reply.limitExceeded).to.be.true;
+  });
+
+  it('reports a validator\'s own "interrupted" error as an error', async () => {
+    const reply = await runValidatorInSandbox({
+      source: validator('throw new Error(\'interrupted by the validator\');'),
+      input: INPUT,
+      timeoutMs: 1000
+    });
+    expect(reply.ok).to.be.false;
+    expect(reply.error).to.equal('interrupted by the validator');
+    expect(reply.limitExceeded).to.not.be.true;
+  });
+
+  it('reports a validator\'s own RangeError as an error', async () => {
+    const reply = await runValidatorInSandbox({
+      source: validator('throw new RangeError(\'out of memory\');'),
+      input: INPUT
+    });
+    expect(reply.ok).to.be.false;
+    expect(reply.limitExceeded).to.not.be.true;
   });
 
   it('accepts an async validator that resolves', async () => {
