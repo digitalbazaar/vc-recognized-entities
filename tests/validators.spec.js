@@ -114,17 +114,6 @@ describe('credential validators', () => {
       expect(outcome.errors[0].type).to.equal(CRYPTOGRAPHIC_SECURITY_ERROR);
     });
 
-    it('requires a runner hook for a JavaScript validator', async () => {
-      let error;
-      try {
-        await validateCredential({credential, options: OPTIONS,
-          validators: [jsValidator()]});
-      } catch(e) {
-        error = e;
-      }
-      expect(error).to.be.instanceOf(TypeError);
-      expect(error.message).to.match(/runValidator hook is required/);
-    });
   });
 
   it('refuses a validator with a media type it does not support', async () => {

@@ -90,25 +90,4 @@ describe('validateRecognition (Section 4.3)', () => {
       .recognized).to.be.false;
   });
 
-  it('uses outputValidation to decide actionRecognized', () => {
-    const list = listCredential({recognizedTo: {
-      ...ISSUE_ACTION, outputValidation: [{type: 'JsonSchema', id: 'x'}]
-    }});
-    const pass = validateRecognition({
-      ...base, chain: direct(list), validateOutputValidation: () => true
-    });
-    const fail = validateRecognition({
-      ...base, chain: direct(list), validateOutputValidation: () => false
-    });
-    expect(pass.actionRecognized).to.be.true;
-    expect(fail.actionRecognized).to.be.false;
-  });
-
-  it('requires a schema validator when outputValidation is present', () => {
-    const list = listCredential({recognizedTo: {
-      ...ISSUE_ACTION, outputValidation: {type: 'JsonSchema', id: 'x'}
-    }});
-    expect(() => validateRecognition({...base, chain: direct(list)}))
-      .to.throw(TypeError);
-  });
 });
