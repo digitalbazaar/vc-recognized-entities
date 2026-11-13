@@ -24,6 +24,8 @@ describe('retrieval policy', () => {
     expect(retrievalAllowed('https://app.localhost/x')).to.be.false;
     expect(retrievalAllowed('https://127.0.0.1/x')).to.be.false;
     expect(retrievalAllowed('https://[::1]/x')).to.be.false;
+    expect(retrievalAllowed('https://localhost./x')).to.be.false;
+    expect(retrievalAllowed('https://127.0.0.1./x')).to.be.false;
   });
 
   it('refuses private, link-local and shared IPv4 addresses', () => {
