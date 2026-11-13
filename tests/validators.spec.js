@@ -3,7 +3,8 @@
  */
 
 import {
-  CREDENTIAL_VALIDATION_ERROR, CRYPTOGRAPHIC_SECURITY_ERROR
+  CREDENTIAL_VALIDATION_ERROR, CRYPTOGRAPHIC_SECURITY_ERROR,
+  LIMIT_EXCEEDED_ERROR
 } from '../lib/errors.js';
 import {describe, it} from 'mocha';
 import {
@@ -29,6 +30,12 @@ function multibaseOf(text) {
     value /= 58n;
   }
   return 'z' + out;
+}
+
+// 'u' + base64url (no padding) of a SHA-256 multihash, the other form.
+function multibaseBase64UrlOf(text) {
+  return 'u' + Buffer.concat(
+    [Buffer.from([0x12, 0x20]), sha256(text)]).toString('base64url');
 }
 
 function schemaValidator(schema) {
@@ -81,6 +88,39 @@ describe('credential validators', () => {
         validators: [schemaValidator({required: ['expirationDate']})]});
       expect(result.valid).to.be.false;
       expect(result.errors[0].type).to.equal(CREDENTIAL_VALIDATION_ERROR);
+    });
+
+    it('applies 2020-12 keywords when the schema declares them', async () => {
+      // prefixItems is a 2020-12 keyword; draft-07 ignores it.
+      const schema = {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        properties: {tags: {prefixItems: [{const: 'a'}]}}
+      };
+      const tagged = {...credential, tags: ['b']};
+      const result = await validateCredential({
+        credential: tagged, options: OPTIONS,
+        validators: [schemaValidator(schema)]
+      });
+      expect(result.valid).to.be.false;
+      expect(result.errors[0].type).to.equal(CREDENTIAL_VALIDATION_ERROR);
+    });
+
+    it('ends a schema that runs past the time limit', async () => {
+      // A nested quantifier that backtracks for a long time on this input.
+      const schema = {
+        type: 'object',
+        properties: {x: {type: 'string', pattern: '^(a+)+$'}}
+      };
+      const slow = {...credential, x: 'a'.repeat(40) + '!'};
+      const started = Date.now();
+      const result = await validateCredential({
+        credential: slow, options: OPTIONS, timeoutMs: 200,
+        validators: [schemaValidator(schema)]
+      });
+      expect(Date.now() - started).to.be.below(5000);
+      expect(result.valid).to.be.false;
+      expect(result.errors[0].type).to.equal(LIMIT_EXCEEDED_ERROR);
     });
   });
 
@@ -147,6 +187,17 @@ describe('digest checks (4.4.1)', () => {
     const multibase = multibaseOf(CODE);
     expect(digestMatches(CODE, {digestMultibase: multibase})).to.be.true;
     expect(digestMatches('other', {digestMultibase: multibase})).to.be.false;
+  });
+
+  it('matches a digestMultibase in base64url form (u prefix)', () => {
+    const multibase = multibaseBase64UrlOf(CODE);
+    expect(digestMatches(CODE, {digestMultibase: multibase})).to.be.true;
+    expect(digestMatches('other', {digestMultibase: multibase})).to.be.false;
+  });
+
+  it('refuses a digestMultibase with a non-canonical base64url body', () => {
+    const multibase = multibaseBase64UrlOf(CODE) + '=';
+    expect(digestMatches(CODE, {digestMultibase: multibase})).to.be.false;
   });
 
   it('is undefined when the validator carries no digest', () => {
