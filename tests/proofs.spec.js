@@ -9,6 +9,7 @@ import {
   CRYPTOGRAPHIC_SECURITY_ERROR, discoverCredentialChain, validateRecognition
 } from '../lib/index.js';
 import {describe, it} from 'mocha';
+import {assertCredentialProof} from '../lib/verify.js';
 import {expect} from 'chai';
 
 const LIST_URL = 'https://anchor.example/lists/issuers.json';
@@ -107,5 +108,48 @@ describe('proof verification in discovery', () => {
       verifyProofs: false, suite: undefined, documentLoader: undefined
     }));
     expect(chain).to.have.lengthOf(2);
+  });
+});
+
+describe('proof check does not judge validity', () => {
+  it('accepts a correctly signed credential that has expired now', async () => {
+    const anchor = await createIdentity();
+    const expired = await sign({
+      '@context': CONTEXT,
+      id: LIST_URL,
+      type: ['VerifiableCredential', 'RecognizedEntityCredential'],
+      issuer: anchor.did,
+      validFrom: '2020-01-01T00:00:00Z',
+      validUntil: '2020-06-01T00:00:00Z',
+      credentialSubject: [{id: 'did:example:issuer'}]
+    }, anchor);
+    const result = await assertCredentialProof({
+      credential: expired, suite: verifierSuites(), documentLoader
+    });
+    expect(result).to.be.undefined;
+  });
+
+  it('still refuses a credential changed after signing', async () => {
+    const anchor = await createIdentity();
+    const signed = await sign({
+      '@context': CONTEXT,
+      id: LIST_URL,
+      type: ['VerifiableCredential', 'RecognizedEntityCredential'],
+      issuer: anchor.did,
+      validFrom: '2020-01-01T00:00:00Z',
+      credentialSubject: [{id: 'did:example:issuer'}]
+    }, anchor);
+    const tampered = {
+      ...signed, credentialSubject: [{id: 'did:example:other'}]
+    };
+    let error;
+    try {
+      await assertCredentialProof({
+        credential: tampered, suite: verifierSuites(), documentLoader
+      });
+    } catch(e) {
+      error = e;
+    }
+    expect(error?.type).to.equal(CRYPTOGRAPHIC_SECURITY_ERROR);
   });
 });
