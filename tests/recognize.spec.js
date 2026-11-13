@@ -100,6 +100,110 @@ describe('recognize', () => {
     expect(error.type).to.equal(LIMIT_EXCEEDED_ERROR);
   });
 
+  it('checks a list that discovery fetches against section 3', async () => {
+    const result = await recognize({
+      ...base,
+      credential: targetCredential(
+        {recognizedIn: {id: LIST_URL, type: 'RecognizedEntityCredential'}}),
+      documents: [],
+      nonConformingDocumentType: 'urn:x',
+      hooks: {
+        verifyProof: verified,
+        // A list without the @context that section 3 requires.
+        fetchCredential: async () => listCredential(
+          {recognizedTo: ISSUE_ACTION})
+      }
+    });
+    expect(result.recognized).to.equal(false);
+    expect(result.errors[0].type).to.equal('urn:x');
+  });
+
+  describe('an intermediate credential in a three-credential chain', () => {
+    // The credential under test is listed by LIST_URL, which the intermediate
+    // issuer recognizes. The intermediate issuer is listed by LIST_B, which
+    // the anchor recognizes. LIST_B's validator for the intermediate issuer
+    // is what runs on LIST_URL's credential.
+    const intermediate = 'did:example:intermediate';
+    const listB = 'https://anchor.example/lists/intermediate.json';
+    const documents = () => [
+      conformingList({
+        id: LIST_URL,
+        issuer: {id: intermediate, type: 'RecognizedIssuer', recognizedIn: {
+          id: listB, type: 'RecognizedEntityCredential'
+        }},
+        entity: ISSUER,
+        recognizedTo: ISSUE_ACTION
+      }),
+      conformingList({
+        id: listB,
+        issuer: ANCHOR,
+        entity: intermediate,
+        recognizedTo: {...ISSUE_ACTION, credentialValidator: [jsValidator()]}
+      })
+    ];
+    const credential = () => targetCredential(
+      {recognizedIn: {id: LIST_URL, type: 'RecognizedEntityCredential'}});
+    const refusal = {
+      type: 'https://anchor.example/problems/refused', title: 'Refused'
+    };
+
+    it('recognizes when the validator accepts the intermediate', async () => {
+      const runs = [];
+      const result = await recognize({
+        ...base, credential: credential(), documents: documents(),
+        hooks: {
+          verifyProof: verified,
+          runValidator: async request => {
+            runs.push(request);
+            return {ok: true, result: {valid: true, errors: [], warnings: []}};
+          }
+        }
+      });
+      expect(result.recognized).to.equal(true);
+      expect(result.actionRecognized).to.equal(true);
+      expect(runs).to.have.length(1);
+      expect(runs[0].input.credential.id).to.equal(LIST_URL);
+      expect(runs[0].input.options.chain).to.have.length(1);
+    });
+
+    it('refuses the action when the validator rejects the intermediate',
+      async () => {
+        const result = await recognize({
+          ...base, credential: credential(), documents: documents(),
+          hooks: {
+            verifyProof: verified,
+            runValidator: async () => ({
+              ok: true, result: {valid: false, errors: [refusal], warnings: []}
+            })
+          }
+        });
+        expect(result.recognized).to.equal(true);
+        expect(result.actionRecognized).to.equal(false);
+        expect(result.errors[0].type).to.equal(refusal.type);
+      });
+  });
+
+  it('raises LIMIT_EXCEEDED_ERROR when validation runs past maxDuration',
+    async () => {
+      const clock = {t: 0};
+      const timeouts = [];
+      const error = await recognize({
+        ...base, maxDuration: 1000,
+        ...stapled({...ISSUE_ACTION, credentialValidator: jsValidator()}),
+        hooks: {
+          verifyProof: verified,
+          now: () => clock.t,
+          runValidator: async request => {
+            timeouts.push(request.timeoutMs);
+            clock.t += 1500;
+            return {ok: true, result: {valid: true, errors: [], warnings: []}};
+          }
+        }
+      }).catch(e => e);
+      expect(error.type).to.equal(LIMIT_EXCEEDED_ERROR);
+      expect(timeouts[0]).to.be.at.most(1000);
+    });
+
   it('applies the retrieval policy before resolving an identifier',
     async () => {
       let called = false;
