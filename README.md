@@ -37,9 +37,6 @@ The functions do no network or I/O of their own. The caller also supplies:
 - `verifyPresentation(presentation, issuerId)`: returns true when the
   presentation's proof verifies and is bound to `issuerId`. Discovery verifies
   the credentials inside the presentation separately.
-- `validateOutputValidation(credential, schema)`: returns true when the
-  credential conforms to one data schema. Required when a recognized action
-  declares `outputValidation`.
 
 The target credential is the caller's input. Verify its proof before calling
 discovery.
