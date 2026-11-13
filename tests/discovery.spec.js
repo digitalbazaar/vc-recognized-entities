@@ -37,6 +37,7 @@ describe('discoverCredentialChain (Section 4.1)', () => {
   it('returns the chain from provided documents without fetching', async () => {
     const list = listCredential({recognizedTo: ISSUE_ACTION});
     const chain = await discoverCredentialChain({
+      verifyProofs: false,
       credential: targetCredential({recognizedIn: {id: LIST_URL}}),
       recognizedIssuers: [ANCHOR], maxDepth: 5,
       fetchCredential: noFetch, providedDocuments: [list]
@@ -48,6 +49,7 @@ describe('discoverCredentialChain (Section 4.1)', () => {
   it('fetches the list when it is not provided', async () => {
     const list = listCredential({recognizedTo: ISSUE_ACTION});
     const chain = await discoverCredentialChain({
+      verifyProofs: false,
       credential: targetCredential({recognizedIn: {id: LIST_URL}}),
       recognizedIssuers: [ANCHOR], maxDepth: 5,
       fetchCredential: fetchFrom({[LIST_URL]: list})
@@ -58,6 +60,7 @@ describe('discoverCredentialChain (Section 4.1)', () => {
   it('returns one credential for a directly recognized issuer', async () => {
     const credential = targetCredential();
     const chain = await discoverCredentialChain({
+      verifyProofs: false,
       credential: {...credential, issuer: ANCHOR},
       recognizedIssuers: [ANCHOR], maxDepth: 5, fetchCredential: noFetch
     });
@@ -76,6 +79,7 @@ describe('discoverCredentialChain (Section 4.1)', () => {
     next.credentialSubject[0].recognizedTo = ISSUE_ACTION;
     list.issuer = {id: OTHER, recognizedIn: {id: next.id}};
     await expectError(discoverCredentialChain({
+      verifyProofs: false,
       credential: targetCredential({recognizedIn: {id: LIST_URL}}),
       recognizedIssuers: [ANCHOR], maxDepth: 2,
       fetchCredential: fetchFrom({[LIST_URL]: list, [next.id]: next})
@@ -84,6 +88,7 @@ describe('discoverCredentialChain (Section 4.1)', () => {
 
   it('raises RETRIEVAL_ERROR when the list cannot be fetched', async () => {
     await expectError(discoverCredentialChain({
+      verifyProofs: false,
       credential: targetCredential({recognizedIn: {id: LIST_URL}}),
       recognizedIssuers: [ANCHOR], maxDepth: 5,
       fetchCredential: fetchFrom({})
@@ -105,6 +110,7 @@ describe('discoverIdentifierChains (Section 4.2)', () => {
     verifiableCredential: [list]
   });
   const options = (overrides = {}) => ({
+    verifyProofs: false,
     credential, recognizedIssuers: [ANCHOR], maxDepth: 5, maxDuration: 60000,
     resolveIdentifier: async () => idDocument,
     verifyPresentation: async () => true,
